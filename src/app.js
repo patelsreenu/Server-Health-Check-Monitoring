@@ -354,9 +354,9 @@ $('refresh-btn').addEventListener('click', () => {
   } else if (state.page === 'detail') {
     DetailPage.load(state.nav.serverId);
   } else if (state.page === 'network') {
-    NetworkPage.data = null; NetworkPage.load();
+    NetworkPage.reload();
   } else if (state.page === 'firewall') {
-    FirewallPage.load();
+    FirewallPage.reload();
   }
 });
 

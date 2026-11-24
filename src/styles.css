@@ -519,3 +519,9 @@ th.sorted-active .sort-icon { color: var(--brand-terracotta); }
 .net-strip-item.bad { border-left-color: #b71c1c; }
 .net-strip-item:hover { background: var(--brand-bg-alt); }
 .net-strip-item .ai-sub { display: block; margin-bottom: 2px; }
+
+/* Network / Firewall tabs show the original tools full-width */
+.page.page-tool { max-width: none; padding: 0; }
+.tool-bar { display: flex; justify-content: space-between; align-items: center; padding: 6px 16px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--brand-mid-grey); background: var(--brand-bg-alt); border-bottom: 1px solid var(--brand-warm-grey); }
+.tool-bar a { text-transform: none; letter-spacing: 0; font-size: 12px; }
+.tool-frame { display: block; width: 100%; height: calc(100vh - var(--nav-h) - 32px - 30px); border: 0; background: #fff; }

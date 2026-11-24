@@ -17,8 +17,8 @@ It runs on a single jump box inside your network and installs nothing on the ser
 | **Endpoint checks** | HTTP(S) URLs checked on a schedule, with an email when one goes down or comes back |
 | **Actions** | Start, stop or restart a server, run a script, restart a Windows service. Each asks for the person's admin credentials and a confirmation (see the security notes) |
 | **Incidents** | A **Raise incident** button drafts a ServiceNow ticket. Nothing is raised automatically |
-| **Network Monitoring** | Devices up and down, sites affected, open alerts, totals by device type, busiest interfaces (with a warning when the figures are stale), and device search. Read from a separate network poller over its REST API |
-| **Firewall Monitoring** | Palo Alto firewall health (model, PAN-OS version, uptime, HA state), reachability of every firewall, and a snapshot of current traffic: the allow/deny/drop mix, the rules blocking the most, and denied sources, destinations and ports |
+| **Network Monitoring** | Your network poller's own pages (the NetOps NOC platform: overview, devices, alerts, SD-WAN, interfaces, reports, admin), shown unchanged inside the tab |
+| **Firewall Monitoring** | The PAN-OS Traffic Portal's own pages, shown unchanged inside the tab: firewall status, traffic log search by source, destination, port, application, action and protocol, CSV export, and the server and application directory |
 
 ## Architecture
 
@@ -84,17 +84,17 @@ Stop-ScheduledTask -TaskName "HealthMonitor"; Start-ScheduledTask -TaskName "Hea
 
 ## Network and firewall tabs (optional)
 
-These two tabs read from tools that run alongside the Health Monitor. The Health Monitor only reads from them (GET requests), adds its own sign-in in front, and shows them in its own style. Each tab stays hidden until its address is set in `.env`.
+These two tabs show tools that run alongside the Health Monitor, with all their own features. The Health Monitor serves their pages through itself at `/tools/network/` and `/tools/firewall/` (see `server/routes/toolsProxy.js`). That way they load from the dashboard's own address and certificate and sit behind its sign-in. The only change on the way through is pointing their `/api/...` calls at `/tools/<tool>/api/...`. Each tab stays hidden until its address is set in `.env`.
 
-| Setting | Points to | Endpoints it reads |
-| --- | --- | --- |
-| `NETOPS_URL` | A network poller (the NetOps NOC platform: SNMP/ICMP polling of switches, routers, APs and SD-WAN) | `/api/stats`, `/api/sites`, `/api/devices`, `/api/devices/:id`, `/api/alerts`, `/api/interfaces` |
-| `PANOS_PORTAL_URL` | A PAN-OS portal that wraps the Palo Alto XML API | `/api/health`, `/api/traffic` |
+The summary strip on the Servers tab reads a few figures from the same tools through `server/routes/network.js`, which keeps only the fields it shows and never passes on SNMP credentials.
+
+| Setting | Points to |
+| --- | --- |
+| `NETOPS_URL` | The NetOps NOC platform (SNMP/ICMP polling of switches, routers, APs and SD-WAN) |
+| `PANOS_PORTAL_URL` | The PAN-OS Traffic Portal (Palo Alto XML API) |
 | `NETWORK_INSECURE_TLS` | Accept self-signed certificates from those tools | Default: only for `localhost` |
 
-To connect a different tool, replace the calls in `server/routes/network.js`; the pages in `src/pages/network.js` only use the Health Monitor's own `/api/v2/network/*` and `/api/v2/firewall/*` endpoints.
-
-Fields the browser doesn't need are dropped on the server. In particular, SNMP community strings and passwords are never passed on, even if the poller returns them.
+To show a different web tool in a tab, add it to `TOOLS` in `server/routes/toolsProxy.js`, with any path rewrites its pages need.
 
 ## AI (optional)
 

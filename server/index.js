@@ -20,6 +20,7 @@ const actionsRoute     = require('./routes/actions');
 const ticketsRoute     = require('./routes/tickets');
 const aiRoute          = require('./routes/ai');
 const { network: networkRoute, firewall: firewallRoute } = require('./routes/network');
+const toolsProxy = require('./routes/toolsProxy');
 require('./services/historyStore').init();
 require('./services/ticketWatcher').start();
 require('./services/alertService').start();
@@ -60,6 +61,9 @@ app.use(helmet({
   }
 }));
 app.use(cors({ origin: true, credentials: true }));
+// Original NetOps and PAN-OS portal pages, shown inside the Network / Firewall tabs.  Mounted before the
+// JSON body parser so request bodies pass through to the tools untouched.
+app.use('/tools', toolsProxy.proxy);
 app.use(express.json({ limit: '1mb' }));
 
 // ── Static frontend ───────────────────────────────────────────────────────────
@@ -73,6 +77,7 @@ app.use('/api/v2/server',  requireAuth, serverDetailRoute);
 app.use('/api/v2/actions', requireAuth, actionsRoute);
 app.use('/api/v2/tickets', requireAuth, ticketsRoute);
 app.use('/api/v2/ai',      requireAuth, aiRoute);
+app.post('/api/v2/network/frame-session', requireAuth, toolsProxy.frameSession);
 app.use('/api/v2/network', requireAuth, networkRoute);
 app.use('/api/v2/firewall', requireAuth, firewallRoute);
 

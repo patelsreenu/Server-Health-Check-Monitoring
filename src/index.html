@@ -81,22 +81,16 @@
     <div id="fleet-grid" class="fleet-grid"></div>
   </div>
 
-  <!-- Network Monitoring (from NetOps) -->
-  <div id="page-network" class="page hidden">
-    <div class="page-header">
-      <h2>Network Monitoring</h2>
-      <p id="network-meta" class="page-sub"></p>
-    </div>
-    <div id="network-body"></div>
+  <!-- Network Monitoring: the NetOps NOC pages, as they are -->
+  <div id="page-network" class="page page-tool hidden">
+    <div class="tool-bar"><span>Network Monitoring · NetOps NOC</span><a href="/tools/network/noc-dashboard.html" target="_blank" rel="noopener">Open in a new window &#8599;</a></div>
+    <iframe id="network-frame" class="tool-frame" title="Network Monitoring (NetOps NOC)"></iframe>
   </div>
 
-  <!-- Firewall & Traffic Checks (from the PAN-OS portal) -->
-  <div id="page-firewall" class="page hidden">
-    <div class="page-header">
-      <h2>Firewall Monitoring</h2>
-      <p id="firewall-meta" class="page-sub"></p>
-    </div>
-    <div id="firewall-body"></div>
+  <!-- Firewall Monitoring: the PAN-OS Traffic Portal, as it is -->
+  <div id="page-firewall" class="page page-tool hidden">
+    <div class="tool-bar"><span>Firewall Monitoring · PAN-OS Traffic Portal</span><a href="/tools/firewall/" target="_blank" rel="noopener">Open in a new window &#8599;</a></div>
+    <iframe id="firewall-frame" class="tool-frame" title="Firewall Monitoring (PAN-OS Traffic Portal)"></iframe>
   </div>
 
   <!-- Page 2 — Subnet Summary -->
