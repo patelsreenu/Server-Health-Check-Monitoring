@@ -135,6 +135,14 @@ async function showApp() {
     state.hostServerId = r.hostServerId;
   } catch {}
 
+  // Hide the Network / Firewall tabs when those tools are not configured on the server.
+  try {
+    const on = await api('/api/v2/network/enabled');
+    document.querySelectorAll('#nav-tabs [data-tab="network"]').forEach(b => b.classList.toggle('hidden', !on.network));
+    document.querySelectorAll('#nav-tabs [data-tab="firewall"]').forEach(b => b.classList.toggle('hidden', !on.firewall));
+    if (!on.network && !on.firewall) hide('nav-tabs');
+  } catch {}
+
   const start = parseHash();
   navigateTo(start.page, start.nav, { replace: true });
 }
@@ -236,6 +244,7 @@ const dec = s => { try { return decodeURIComponent(s); } catch { return s; } };
 function routeHash(page, nav) {
   if (page === 'subnet') return `#/subnet/${enc(nav.provider || '')}/${enc(nav.group || '')}${nav.os ? '/' + enc(nav.os) : ''}`;
   if (page === 'detail') return `#/server/${enc(nav.serverId || '')}/${enc(nav.provider || '')}/${enc(nav.group || '')}`;
+  if (page === 'network' || page === 'firewall') return '#/' + page;
   return '#/fleet';
 }
 
@@ -243,6 +252,7 @@ function parseHash(hash = location.hash) {
   const p = (hash || '').replace(/^#\/?/, '').split('/').map(dec);
   if (p[0] === 'subnet' && p[1]) return { page: 'subnet', nav: { provider: p[1], group: p[2] || '', os: p[3] || null, serverId: null } };
   if (p[0] === 'server' && p[1]) return { page: 'detail', nav: { serverId: p[1], provider: p[2] || null, group: p[3] || null } };
+  if (p[0] === 'network' || p[0] === 'firewall') return { page: p[0], nav: {} };
   return { page: 'fleet', nav: {} };
 }
 
@@ -265,12 +275,14 @@ async function navigateTo(page, params = {}, opts = {}) {
   Object.assign(state.nav, params);
   if (!opts.fromHistory) recordHistory(page, !!opts.replace);
 
-  ['page-fleet','page-subnet','page-detail'].forEach(id => hide(id));
+  ['page-fleet','page-subnet','page-detail','page-network','page-firewall'].forEach(id => hide(id));
 
   updateBreadcrumb();
+  updateNavTabs();
 
   if (page === 'fleet') {
     show('page-fleet');
+    NetStrip.load().catch(() => {});
     await FleetPage.load();
   } else if (page === 'subnet') {
     show('page-subnet');
@@ -278,11 +290,32 @@ async function navigateTo(page, params = {}, opts = {}) {
   } else if (page === 'detail') {
     show('page-detail');
     await DetailPage.load(state.nav.serverId);
+  } else if (page === 'network') {
+    show('page-network');
+    await NetworkPage.load();
+  } else if (page === 'firewall') {
+    show('page-firewall');
+    await FirewallPage.load();
   }
 }
 
+// Top tabs: Servers Monitoring (fleet, subnet and server pages), Network Monitoring, Firewall Monitoring.
+function updateNavTabs() {
+  const tab = state.page === 'network' || state.page === 'firewall' ? state.page : 'fleet';
+  document.querySelectorAll('#nav-tabs .nav-tab').forEach(b => {
+    const on = b.dataset.tab === tab;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+}
+$('nav-tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-tab]');
+  if (b) navigateTo(b.dataset.tab);
+});
+
 function updateBreadcrumb() {
   const crumbs = [];
+  if (state.page === 'network' || state.page === 'firewall') { $('breadcrumb').innerHTML = ''; return; }
   crumbs.push(`<span class="bc-item ${state.page === 'fleet' ? 'current' : ''}" data-bc="fleet">Fleet</span>`);
 
   if (state.page === 'subnet' || state.page === 'detail') {
@@ -320,6 +353,10 @@ $('refresh-btn').addEventListener('click', () => {
     navigateTo('subnet', state.nav);
   } else if (state.page === 'detail') {
     DetailPage.load(state.nav.serverId);
+  } else if (state.page === 'network') {
+    NetworkPage.data = null; NetworkPage.load();
+  } else if (state.page === 'firewall') {
+    FirewallPage.load();
   }
 });
 

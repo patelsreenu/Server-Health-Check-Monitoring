@@ -19,6 +19,7 @@ const serverDetailRoute = require('./routes/serverDetail');
 const actionsRoute     = require('./routes/actions');
 const ticketsRoute     = require('./routes/tickets');
 const aiRoute          = require('./routes/ai');
+const { network: networkRoute, firewall: firewallRoute } = require('./routes/network');
 require('./services/historyStore').init();
 require('./services/ticketWatcher').start();
 require('./services/alertService').start();
@@ -72,6 +73,8 @@ app.use('/api/v2/server',  requireAuth, serverDetailRoute);
 app.use('/api/v2/actions', requireAuth, actionsRoute);
 app.use('/api/v2/tickets', requireAuth, ticketsRoute);
 app.use('/api/v2/ai',      requireAuth, aiRoute);
+app.use('/api/v2/network', requireAuth, networkRoute);
+app.use('/api/v2/firewall', requireAuth, firewallRoute);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get('*', (req, res) => {

@@ -491,3 +491,31 @@ th.sorted-active .sort-icon { color: var(--brand-terracotta); }
 /* service restart buttons in the Key Services table */
 .btn.btn-xs { padding: 2px 10px; font-size: 11px; line-height: 1.6; }
 #action-confirm-proceed:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── Top tabs: Servers / Network / Firewall ─────────────────────────────── */
+.nav-tabs { display: flex; align-self: stretch; margin: 0 18px; }
+.nav-tab { background: none; border: none; border-bottom: 3px solid transparent; margin-bottom: -3px; padding: 0 16px; font: inherit; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,.6); cursor: pointer; white-space: nowrap; }
+.nav-tab:hover { color: #fff; }
+.nav-tab.active { color: #fff; border-bottom-color: #fff; }
+
+/* ── Network and firewall pages ─────────────────────────────────────────── */
+.net-tiles { grid-template-columns: repeat(6, 1fr); }
+.net-of { font-size: 14px; color: var(--brand-mid-grey); font-weight: 400; }
+.net-table td.num, .net-table th.num { text-align: right; }
+.net-bad { color: #b71c1c; font-weight: 600; }
+.net-warn { color: #8a4f1a; font-weight: 600; }
+.net-note { margin: 6px 0 10px; }
+.net-empty { padding: 18px 4px; }
+.net-error { background: #fdecea; border: 1px solid #f5c2c0; color: #7a1414; padding: 12px 14px; font-size: 13px; }
+.net-search { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0 10px; }
+.fw-card { border: 1px solid var(--brand-warm-grey); border-left: 4px solid #2e7d32; padding: 12px 16px; margin-bottom: 12px; background: var(--brand-bg-primary); }
+.fw-card.bad { border-left-color: #b71c1c; }
+.fw-head { display: flex; align-items: center; gap: 10px; font-size: 15px; margin-bottom: 8px; }
+.fw-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 18px; font-size: 13px; }
+.fw-tops { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.fw-top .data-table td { padding: 6px 10px; font-size: 12px; word-break: break-all; }
+.net-strip { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.net-strip-item { flex: 1; min-width: 280px; text-align: left; font: inherit; font-size: 13px; background: var(--brand-bg-primary); border: 1px solid var(--brand-warm-grey); border-left: 4px solid #2e7d32; padding: 10px 14px; cursor: pointer; }
+.net-strip-item.bad { border-left-color: #b71c1c; }
+.net-strip-item:hover { background: var(--brand-bg-alt); }
+.net-strip-item .ai-sub { display: block; margin-bottom: 2px; }

@@ -55,6 +55,11 @@
       <div class="brand-square"></div>
       <span id="nav-title">Health Monitor</span>
     </div>
+    <div class="nav-tabs" id="nav-tabs" role="tablist">
+      <button class="nav-tab" data-tab="fleet" role="tab">Servers Monitoring</button>
+      <button class="nav-tab" data-tab="network" role="tab">Network Monitoring</button>
+      <button class="nav-tab" data-tab="firewall" role="tab">Firewall Monitoring</button>
+    </div>
     <div id="breadcrumb" class="breadcrumb"></div>
     <div class="navbar-end">
       <span id="nav-account" class="nav-account"></span>
@@ -71,8 +76,27 @@
       <h2>Fleet Overview</h2>
       <p class="page-sub">Click a subnet group to view server health</p>
     </div>
+    <div id="net-strip" class="net-strip hidden"></div>
     <div id="ai-panel"></div>
     <div id="fleet-grid" class="fleet-grid"></div>
+  </div>
+
+  <!-- Network Monitoring (from NetOps) -->
+  <div id="page-network" class="page hidden">
+    <div class="page-header">
+      <h2>Network Monitoring</h2>
+      <p id="network-meta" class="page-sub"></p>
+    </div>
+    <div id="network-body"></div>
+  </div>
+
+  <!-- Firewall & Traffic Checks (from the PAN-OS portal) -->
+  <div id="page-firewall" class="page hidden">
+    <div class="page-header">
+      <h2>Firewall Monitoring</h2>
+      <p id="firewall-meta" class="page-sub"></p>
+    </div>
+    <div id="firewall-body"></div>
   </div>
 
   <!-- Page 2 — Subnet Summary -->
@@ -439,6 +463,7 @@
 <script src="pages/fleet.js"></script>
 <script src="pages/subnet.js"></script>
 <script src="pages/serverDetail.js"></script>
+<script src="pages/network.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
