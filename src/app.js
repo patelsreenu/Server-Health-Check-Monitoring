@@ -282,7 +282,6 @@ async function navigateTo(page, params = {}, opts = {}) {
 
   if (page === 'fleet') {
     show('page-fleet');
-    NetStrip.load().catch(() => {});
     await FleetPage.load();
   } else if (page === 'subnet') {
     show('page-subnet');

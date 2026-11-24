@@ -86,8 +86,6 @@ Stop-ScheduledTask -TaskName "HealthMonitor"; Start-ScheduledTask -TaskName "Hea
 
 These two tabs show tools that run alongside the Health Monitor, with all their own features. The Health Monitor serves their pages through itself at `/tools/network/` and `/tools/firewall/` (see `server/routes/toolsProxy.js`). That way they load from the dashboard's own address and certificate and sit behind its sign-in. The only change on the way through is pointing their `/api/...` calls at `/tools/<tool>/api/...`. Each tab stays hidden until its address is set in `.env`.
 
-The summary strip on the Servers tab reads a few figures from the same tools through `server/routes/network.js`, which keeps only the fields it shows and never passes on SNMP credentials.
-
 | Setting | Points to |
 | --- | --- |
 | `NETOPS_URL` | The NetOps NOC platform (SNMP/ICMP polling of switches, routers, APs and SD-WAN) |
@@ -123,7 +121,7 @@ Without a key, forecasts, log grouping, correlation and alerts all still work.
 ```
 server/
   index.js            HTTPS server and routes
-  routes/             auth, fleet, subnet, server detail, actions, tickets, ai, network + firewall
+  routes/             auth, fleet, subnet, server detail, actions, tickets, ai, toolsProxy (network + firewall tabs)
   services/           collectors (WinRM, SSH, AWS, Azure, OCI), history, forecast, alerts, AI
   config/             your configuration (examples included)
 src/                  single-page web app (plain JS, no build step)

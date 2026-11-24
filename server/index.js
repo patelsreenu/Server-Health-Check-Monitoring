@@ -19,7 +19,6 @@ const serverDetailRoute = require('./routes/serverDetail');
 const actionsRoute     = require('./routes/actions');
 const ticketsRoute     = require('./routes/tickets');
 const aiRoute          = require('./routes/ai');
-const { network: networkRoute, firewall: firewallRoute } = require('./routes/network');
 const toolsProxy = require('./routes/toolsProxy');
 require('./services/historyStore').init();
 require('./services/ticketWatcher').start();
@@ -78,8 +77,7 @@ app.use('/api/v2/actions', requireAuth, actionsRoute);
 app.use('/api/v2/tickets', requireAuth, ticketsRoute);
 app.use('/api/v2/ai',      requireAuth, aiRoute);
 app.post('/api/v2/network/frame-session', requireAuth, toolsProxy.frameSession);
-app.use('/api/v2/network', requireAuth, networkRoute);
-app.use('/api/v2/firewall', requireAuth, firewallRoute);
+app.get('/api/v2/network/enabled', requireAuth, toolsProxy.enabled);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get('*', (req, res) => {

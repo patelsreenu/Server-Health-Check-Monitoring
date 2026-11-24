@@ -139,4 +139,7 @@ function frameSession(req, res) {
   res.json({ ok: true, network: !!TOOLS.network.url, firewall: !!TOOLS.firewall.url });
 }
 
-module.exports = { proxy, frameSession };
+// GET /api/v2/network/enabled: which of the two tabs are configured, so the page can hide the others.
+function enabled(req, res) { res.json({ network: !!TOOLS.network.url, firewall: !!TOOLS.firewall.url }); }
+
+module.exports = { proxy, frameSession, enabled };
