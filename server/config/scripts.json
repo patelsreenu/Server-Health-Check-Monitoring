@@ -1,0 +1,50 @@
+[
+  {
+    "id": "disk-usage",
+    "name": "Disk Usage",
+    "description": "Show all drives with used/free space",
+    "os": "windows",
+    "script": "Get-WmiObject Win32_LogicalDisk -Filter 'DriveType=3' | Select-Object DeviceID, @{N='SizeGB';E={[math]::Round($_.Size/1GB,1)}}, @{N='FreeGB';E={[math]::Round($_.FreeSpace/1GB,1)}}, @{N='UsedPct';E={[math]::Round(100-($_.FreeSpace/$_.Size*100),1)}} | Format-Table -AutoSize",
+    "requiresConfirmation": false
+  },
+  {
+    "id": "top-processes",
+    "name": "Top Processes by CPU",
+    "description": "Show top 10 processes by CPU usage",
+    "os": "windows",
+    "script": "Get-Process | Sort-Object CPU -Descending | Select-Object -First 10 Name, Id, @{N='CPU(s)';E={[math]::Round($_.CPU,1)}}, @{N='MemMB';E={[math]::Round($_.WorkingSet/1MB,1)}} | Format-Table -AutoSize",
+    "requiresConfirmation": false
+  },
+  {
+    "id": "event-log-errors",
+    "name": "Recent Event Log Errors",
+    "description": "Show last 20 System/Application errors",
+    "os": "windows",
+    "script": "Get-WinEvent -FilterHashtable @{LogName='System','Application'; Level=1,2} -MaxEvents 20 | Select-Object TimeCreated, LevelDisplayName, ProviderName, @{N='Msg';E={$_.Message.Substring(0,[Math]::Min(120,$_.Message.Length))}} | Format-Table -AutoSize",
+    "requiresConfirmation": false
+  },
+  {
+    "id": "services-status",
+    "name": "All Running Services",
+    "description": "List all currently running Windows services",
+    "os": "windows",
+    "script": "Get-Service | Where-Object {$_.Status -eq 'Running'} | Select-Object Name, DisplayName, Status | Sort-Object Name | Format-Table -AutoSize",
+    "requiresConfirmation": false
+  },
+  {
+    "id": "pending-updates",
+    "name": "Check Pending Windows Updates",
+    "description": "List available Windows updates without installing",
+    "os": "windows",
+    "script": "$session = New-Object -ComObject Microsoft.Update.Session; $searcher = $session.CreateUpdateSearcher(); $found = $searcher.Search('IsInstalled=0 and Type=Software'); \"Pending updates: $($found.Updates.Count)\"; $found.Updates | ForEach-Object { $_.Title }",
+    "requiresConfirmation": false
+  },
+  {
+    "id": "restart-service",
+    "name": "Restart a Windows Service",
+    "description": "Restart a named service — edit script to set the service name",
+    "os": "windows",
+    "script": "$svcName = 'SERVICENAME'; Restart-Service $svcName -Force; \"Service $svcName restarted: $((Get-Service $svcName).Status)\"",
+    "requiresConfirmation": true
+  }
+]

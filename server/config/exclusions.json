@@ -1,0 +1,4 @@
+{
+  "_comment": "VMC servers listed here are treated as powered off: no health checks, left out of the dashboard, forecasts and alerts. Add { \"id\": \"<server id>\", \"reason\": \"...\" }. No restart needed.",
+  "excluded": []
+}

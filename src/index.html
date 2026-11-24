@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Health Monitor</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ── Login ──────────────────────────────────────────────────────────────── -->
+<div id="login-overlay" class="login-overlay">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="brand-square"></div>
+      <span>Health Monitor</span>
+    </div>
+    <h1>Multi-Cloud Fleet Monitor</h1>
+    <p class="login-sub">AWS &bull; Azure &bull; OCI &bull; VMC</p>
+
+    <div id="sso-step-start">
+      <button id="sso-login-btn" class="btn btn-primary btn-lg">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Sign in with AWS IAM Identity Center
+      </button>
+      <div id="sso-error-msg" class="error-banner hidden"></div>
+    </div>
+
+    <div id="sso-step-auth" class="hidden">
+      <div class="auth-device-card">
+        <p class="auth-instructions">An AWS authorisation tab has opened — confirm the code below, then click Allow.</p>
+        <div class="user-code-display">
+          <span class="code-label">One-time code</span>
+          <strong id="sso-user-code" class="code-value"></strong>
+        </div>
+        <a id="sso-portal-link" href="#" target="_blank" rel="noopener" class="btn btn-secondary" style="justify-content:center">Didn't open? Click here &rarr;</a>
+        <div class="poll-status"><div class="spinner"></div><span id="poll-status-text">Waiting for authorisation&hellip;</span></div>
+        <div class="expiry-note">Expires in <span id="sso-expiry-countdown"></span></div>
+      </div>
+    </div>
+
+    <div id="sso-step-success" class="hidden">
+      <div class="success-check">&#10003;</div>
+      <p class="success-text">Authenticated</p>
+      <p id="sso-account-info" class="login-sub"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ── App Shell ──────────────────────────────────────────────────────────── -->
+<div id="app" class="hidden">
+
+  <nav class="navbar">
+    <div class="navbar-brand" id="nav-brand" role="link" tabindex="0" title="Back to the fleet overview">
+      <div class="brand-square"></div>
+      <span id="nav-title">Health Monitor</span>
+    </div>
+    <div id="breadcrumb" class="breadcrumb"></div>
+    <div class="navbar-end">
+      <span id="nav-account" class="nav-account"></span>
+      <button id="refresh-btn" class="btn btn-ghost icon-btn" title="Refresh">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      </button>
+      <button id="logout-btn" class="btn btn-ghost btn-sm">Sign out</button>
+    </div>
+  </nav>
+
+  <!-- Page 1 — Fleet Overview -->
+  <div id="page-fleet" class="page hidden">
+    <div class="page-header">
+      <h2>Fleet Overview</h2>
+      <p class="page-sub">Click a subnet group to view server health</p>
+    </div>
+    <div id="ai-panel"></div>
+    <div id="fleet-grid" class="fleet-grid"></div>
+  </div>
+
+  <!-- Page 2 — Subnet Summary -->
+  <div id="page-subnet" class="page hidden">
+    <div class="page-header">
+      <div class="page-header-row">
+        <div>
+          <h2 id="subnet-title">Subnet</h2>
+          <p id="subnet-meta" class="page-sub"></p>
+        </div>
+        <div class="page-header-actions">
+          <div class="filter-bar">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="healthy">Healthy</button>
+            <button class="filter-btn" data-filter="warning">Warning</button>
+            <button class="filter-btn" data-filter="critical">Critical</button>
+            <button class="filter-btn" data-filter="error">Down</button>
+          </div>
+          <input type="text" id="server-search" class="server-search-input" placeholder="Search servers…">
+          <button id="subnet-refresh-btn" class="btn btn-ghost btn-sm">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="subnet-tabs">
+      <button class="stab active" data-stab="servers">Servers <span id="servers-tab-count" class="count-badge"></span></button>
+      <button class="stab" data-stab="databases">Databases <span id="databases-tab-count" class="count-badge"></span></button>
+    </div>
+    <div id="stale-banner" class="stale-banner hidden">
+      Data is 10+ minutes old &mdash; <button id="stale-refresh-btn" class="inline-link">click Refresh to update</button>
+    </div>
+    <div id="subnet-servers-panel">
+      <table class="data-table" id="servers-table">
+        <thead>
+          <tr>
+            <th data-sort="name">Name <span class="sort-icon">&#8597;</span></th>
+            <th data-sort="status">Status <span class="sort-icon">&#8597;</span></th>
+            <th data-sort="winrm">WinRM <span class="sort-icon">&#8597;</span></th>
+            <th data-sort="rdp">RDP <span class="sort-icon">&#8597;</span></th>
+            <th data-sort="cpu">CPU <span class="sort-icon">&#8597;</span></th>
+            <th data-sort="mem">Memory <span class="sort-icon">&#8597;</span></th>
+            <th data-sort="disk">Disk <span class="sort-icon">&#8597;</span></th>
+            <th data-sort="uptime">Uptime <span class="sort-icon">&#8597;</span></th>
+          </tr>
+        </thead>
+        <tbody id="servers-tbody"></tbody>
+      </table>
+    </div>
+    <div id="subnet-databases-panel" class="hidden">
+      <table class="data-table" id="databases-table" data-dom-sort>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Host</th>
+            <th>Type</th>
+          </tr>
+        </thead>
+        <tbody id="databases-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Page 3 — Server Detail -->
+  <div id="page-detail" class="page hidden">
+    <div id="detail-loading" class="state-view">
+      <div class="spinner-lg"></div><p>Loading server data&hellip;</p>
+    </div>
+    <div id="detail-content" class="hidden">
+      <div class="detail-layout">
+
+        <!-- Left column: metrics + services + info -->
+        <div class="detail-main">
+          <div class="detail-header">
+            <div>
+              <h2 id="detail-server-name"></h2>
+              <p id="detail-server-sub" class="page-sub"></p>
+            </div>
+            <span id="detail-status-pill" class="status-pill"></span>
+          </div>
+
+          <div class="metrics-row" id="detail-metrics-row"></div>
+
+          <div class="detail-section">
+            <h3 class="section-title">Server Information</h3>
+            <div id="detail-info-rows" class="info-grid"></div>
+          </div>
+
+          <div class="detail-section">
+            <h3 class="section-title">Disk Drives</h3>
+            <div id="detail-disks"></div>
+          </div>
+
+          <div id="detail-ai-section" class="detail-section hidden">
+            <h3 class="section-title">AI Insights <span class="section-sub">(trends &amp; diagnosis)</span></h3>
+            <div id="detail-ai-body"></div>
+          </div>
+
+          <div id="detail-services-section" class="detail-section hidden">
+            <div class="services-header">
+              <h3 class="section-title" style="margin:0">Key Services</h3>
+              <div id="svc-filter-btns">
+                <button class="svc-filter-btn active" data-filter="all">ALL</button>
+                <button class="svc-filter-btn" data-filter="running">RUNNING (<span id="svc-count-running">0</span>)</button>
+                <button class="svc-filter-btn stopped" data-filter="stopped">STOPPED (<span id="svc-count-stopped">0</span>)</button>
+              </div>
+            </div>
+            <table class="data-table" data-dom-sort="detail-services">
+              <thead><tr><th>Service</th><th>Status</th><th>Last Started</th><th class="svc-act-col hidden" data-nosort>Action</th></tr></thead>
+              <tbody id="detail-services-tbody"></tbody>
+            </table>
+          </div>
+
+          <div class="detail-section">
+            <h3 class="section-title">Action Log <span class="section-sub">(this session)</span></h3>
+            <div id="action-log" class="action-log"></div>
+          </div>
+        </div>
+
+        <!-- Right column: action panel -->
+        <div class="detail-sidebar">
+          <div class="action-panel">
+            <h3 class="section-title">Actions</h3>
+            <div id="host-server-warning" class="host-warning hidden">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              This is the host server. Stopping it will kill the Health Monitor app for all users.
+            </div>
+            <div class="action-btns">
+              <button class="btn btn-action" data-action="restart">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                Restart Server
+              </button>
+              <button class="btn btn-action btn-stop" data-action="stop">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                Stop Server
+              </button>
+              <button class="btn btn-action btn-start" data-action="start">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Start Server
+              </button>
+              <button class="btn btn-ghost" data-action="logs">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                View Logs
+              </button>
+              <button class="btn btn-ghost" data-action="script">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                Run Script
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /#app -->
+
+<!-- ── Host Server Warning Modal ──────────────────────────────────────────── -->
+<div id="host-warn-modal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box modal-sm">
+    <div class="modal-header">
+      <h3>&#9888; Host Server Warning</h3>
+    </div>
+    <div class="modal-body">
+      <p><strong>This is the server running the Health Monitor application.</strong></p>
+      <p style="margin-top:10px">Stopping it will terminate the Health Monitor for all users immediately.</p>
+      <p style="margin-top:10px">Are you sure you want to continue?</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="host-warn-cancel">Cancel</button>
+      <button class="btn btn-danger" id="host-warn-proceed">Yes, I understand — continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Action Confirm Modal ───────────────────────────────────────────────── -->
+<div id="action-confirm-modal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box modal-sm">
+    <div class="modal-header">
+      <h3 id="action-confirm-title">&#9888; Confirm Action</h3>
+    </div>
+    <div class="modal-body">
+      <p id="action-confirm-msg" style="font-size:14px;line-height:1.6"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="action-confirm-cancel">Cancel</button>
+      <button class="btn btn-danger" id="action-confirm-proceed">Yes, Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Admin Password Modal ───────────────────────────────────────────────── -->
+<div id="admin-modal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box modal-sm">
+    <div class="modal-header">
+      <h3>Action Confirmation</h3>
+      <button class="modal-close" data-close="admin-modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="confirm-summary">
+        <div class="confirm-row"><span class="confirm-key">Action</span><span id="confirm-action" class="confirm-val action-highlight"></span></div>
+        <div class="confirm-row"><span class="confirm-key">Server</span><span id="confirm-server" class="confirm-val"></span></div>
+        <div class="confirm-row"><span class="confirm-key">Group</span><span id="confirm-group" class="confirm-val"></span></div>
+        <div class="confirm-row"><span class="confirm-key">Initiated by</span><span id="confirm-user" class="confirm-val"></span></div>
+        <div class="confirm-row"><span class="confirm-key">Time</span><span id="confirm-time" class="confirm-val"></span></div>
+      </div>
+
+      <div class="form-field">
+        <label class="field-label">ServiceNow Ticket Type</label>
+        <select id="ticket-type-select" class="select-full">
+          <option value="incident">Incident</option>
+          <option value="service_request">Service Request</option>
+          <option value="change_request">Change Request</option>
+        </select>
+      </div>
+
+      <div class="form-field">
+        <label class="field-label">Ticket Description <span class="field-optional">(optional)</span></label>
+        <input type="text" id="ticket-description" class="input-full" placeholder="Brief description of why this action is being taken&hellip;">
+      </div>
+
+      <div class="form-field">
+        <label class="field-label">Admin Username <span class="field-required">*</span></label>
+        <input type="text" id="admin-username" class="input-full" placeholder="domain\username or username" autocomplete="username">
+      </div>
+
+      <div class="form-field">
+        <label class="field-label">Admin Password <span class="field-required">*</span></label>
+        <input type="password" id="admin-password" class="input-full" placeholder="Admin password for this server" autocomplete="current-password">
+      </div>
+
+      <div id="admin-error" class="error-banner hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close="admin-modal">Cancel</button>
+      <button class="btn btn-primary" id="admin-verify-btn">
+        <span id="admin-verify-label">Verify &amp; Proceed</span>
+        <div class="spinner hidden" id="admin-spinner"></div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Script Modal ───────────────────────────────────────────────────────── -->
+<div id="script-modal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Run Script</h3>
+      <button class="modal-close" data-close="script-modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="script-tabs">
+        <button class="stab active" data-stab="predefined">Quick Scripts</button>
+        <button class="stab" data-stab="custom">Custom Script</button>
+      </div>
+      <div id="script-stab-predefined">
+        <div id="scripts-list" class="scripts-list"></div>
+      </div>
+      <div id="script-stab-custom" class="hidden">
+        <textarea id="custom-script-input" rows="12" placeholder="# PowerShell script&#10;Get-Service | Where-Object { $_.Status -eq 'Stopped' }"></textarea>
+        <label class="confirm-check">
+          <input type="checkbox" id="custom-script-confirm">
+          I confirm this script is safe to execute on <strong id="custom-script-server-name"></strong>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close="script-modal">Cancel</button>
+      <button class="btn btn-primary" id="run-script-btn" disabled>
+        <span id="run-script-label">Run with Admin Auth</span>
+        <div class="spinner hidden" id="run-script-spinner"></div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Logs Modal ─────────────────────────────────────────────────────────── -->
+<div id="logs-modal" class="modal hidden">
+  <div class="modal-backdrop" data-close="logs-modal"></div>
+  <div class="modal-box modal-lg">
+    <div class="modal-header">
+      <h3 id="logs-title">Event Logs</h3>
+      <div class="modal-toolbar">
+        <select id="log-lines-select" class="select-sm">
+          <option value="50">50 lines</option>
+          <option value="100" selected>100 lines</option>
+          <option value="200">200 lines</option>
+        </select>
+        <button class="btn btn-sm" id="refresh-logs-btn">Refresh</button>
+      </div>
+      <button class="modal-close" data-close="logs-modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="log-summary" class="log-summary"><span class="ai-muted">Summarising&hellip;</span></div>
+      <details id="log-raw" class="log-raw">
+        <summary>Show the full log <span id="log-raw-count" class="ai-muted"></span></summary>
+        <pre id="log-content" class="log-viewer">Loading&hellip;</pre>
+      </details>
+    </div>
+  </div>
+</div>
+
+<!-- ── Script Output Modal ────────────────────────────────────────────────── -->
+<div id="output-modal" class="modal hidden">
+  <div class="modal-backdrop" data-close="output-modal"></div>
+  <div class="modal-box modal-lg">
+    <div class="modal-header">
+      <h3>Script Output</h3>
+      <span id="output-exit-badge" class="exit-code-badge"></span>
+      <button class="modal-close" data-close="output-modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <pre id="output-content" class="log-viewer"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ── Raise Incident Modal (manual — nothing is sent until the button is clicked) ── -->
+<div id="raise-modal" class="modal hidden">
+  <div class="modal-backdrop" data-close="raise-modal"></div>
+  <div class="modal-box modal-lg">
+    <div class="modal-header">
+      <h3>Raise ServiceNow Incident</h3>
+      <button class="modal-close" data-close="raise-modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="ai-muted" style="margin-bottom:12px">Review and edit the draft. Nothing is sent to ServiceNow until you click <strong>Raise incident</strong>.</p>
+      <div id="raise-dup" class="error-banner hidden"></div>
+      <div class="form-field">
+        <label class="field-label">Short description</label>
+        <input type="text" id="raise-title" class="input-full" maxlength="160">
+      </div>
+      <div class="form-field" style="display:flex;gap:16px">
+        <div style="flex:1"><label class="field-label">Urgency</label>
+          <select id="raise-urgency" class="select-full"><option value="1">1 - High</option><option value="2">2 - Medium</option><option value="3">3 - Low</option></select></div>
+        <div style="flex:1"><label class="field-label">Impact</label>
+          <select id="raise-impact" class="select-full"><option value="1">1 - High</option><option value="2">2 - Medium</option><option value="3">3 - Low</option></select></div>
+      </div>
+      <div class="form-field">
+        <label class="field-label">Description <span id="raise-ai-note" class="field-optional"></span></label>
+        <textarea id="raise-desc" rows="14" class="input-full" style="font-family:monospace;font-size:12px;resize:vertical"></textarea>
+      </div>
+      <label id="raise-force-row" class="hidden" style="font-size:12px"><input type="checkbox" id="raise-force"> Raise another incident anyway</label>
+      <div id="raise-error" class="error-banner hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close="raise-modal">Cancel</button>
+      <button class="btn btn-primary" id="raise-submit"><span id="raise-submit-label">Raise incident</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ──────────────────────────────────────────────────────────────── -->
+<div id="toast-container" aria-live="polite"></div>
+
+<script src="sortable.js"></script>
+<script src="pages/ai.js"></script>
+<script src="pages/fleet.js"></script>
+<script src="pages/subnet.js"></script>
+<script src="pages/serverDetail.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

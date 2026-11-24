@@ -1,0 +1,5 @@
+{
+  "_readme": "Service restart from the dashboard. 'allowedUsers': signed-in account names allowed to restart services (empty = anyone signed in; the person still needs admin rights on the server itself). 'protected': services the dashboard will never restart, because restarting them would cut the tool off from the server or destabilise it.",
+  "allowedUsers": [],
+  "protected": ["WinRM", "RpcSs", "RpcEptMapper", "DcomLaunch", "EventLog", "LSM", "SamSs", "Netlogon", "Winmgmt", "CryptSvc", "BFE", "MpsSvc", "TermService", "Dhcp", "Dnscache", "nsi", "LanmanWorkstation", "gpsvc", "ProfSvc", "Schedule"]
+}

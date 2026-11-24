@@ -1,0 +1,36 @@
+[
+  {
+    "id": "app-server-01",
+    "name": "Application Server 01",
+    "group": "Prod",
+    "provider": "OnPrem",
+    "os": "windows",
+    "host": "appsrv01.corp.example.com",
+    "domain": "corp.example.com",
+    "winrm": { "host": "appsrv01.corp.example.com", "port": 5985, "username": "${WINRM_USERNAME}", "password": "${WINRM_PASSWORD}" },
+    "services": ["W3SVC"],
+    "criticalServices": ["W3SVC"]
+  },
+  {
+    "id": "sql-server-01",
+    "name": "SQL Server 01",
+    "group": "Non-Prod",
+    "provider": "VMC",
+    "os": "windows",
+    "host": "sqlsrv01.corp.example.com",
+    "domain": "corp.example.com",
+    "winrm": { "host": "sqlsrv01.corp.example.com", "port": 5985, "username": "${WINRM_USERNAME}", "password": "${WINRM_PASSWORD}" },
+    "services": ["MSSQLSERVER"]
+  },
+  {
+    "id": "web-linux-01",
+    "name": "Linux Web 01",
+    "group": "Prod",
+    "provider": "OnPrem",
+    "os": "linux",
+    "host": "web01.corp.example.com",
+    "domain": "corp.example.com",
+    "ssh": { "host": "web01.corp.example.com", "port": 22 },
+    "services": ["nginx"]
+  }
+]

@@ -1,0 +1,6 @@
+{
+  "_comment": "Web endpoints checked by endpointMonitor. An endpoint is Down when it does not return an expected status (default 200) or does not answer within timeoutSec; an email is sent after failAfter consecutive failures and again when it recovers. Optional per entry: expectStatus (number or list), expectText (must appear in the body), timeoutSec, intervalSec, failAfter, insecureTls (accept an untrusted certificate), method.",
+  "endpoints": [
+    { "id": "intranet", "name": "Intranet home page", "url": "https://intranet.corp.example.com/", "expectStatus": 200, "timeoutSec": 15, "intervalSec": 60, "failAfter": 2 }
+  ]
+}

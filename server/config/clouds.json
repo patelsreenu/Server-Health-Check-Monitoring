@@ -1,0 +1,11 @@
+{
+  "_comment": "AWS IAM Identity Center (SSO) is used for dashboard sign-in and EC2 discovery. Azure and OCI are optional: leave blank to skip. Values can also come from .env (AWS_SSO_START_URL, AWS_ACCOUNT_ID, AZURE_*, OCI_*).",
+  "aws": {
+    "ssoStartUrl": "https://d-xxxxxxxxxx.awsapps.com/start",
+    "region": "us-east-1",
+    "accountId": "000000000000",
+    "roleName": "ReadOnlyAccess"
+  },
+  "azure": { "tenantId": "", "clientId": "", "clientSecret": "", "subscriptionId": "" },
+  "oci":   { "region": "", "compartmentId": "", "configFile": "" }
+}

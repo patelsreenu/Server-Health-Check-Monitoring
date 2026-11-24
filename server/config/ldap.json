@@ -1,0 +1,9 @@
+{
+  "_comment": "Active Directory used to check admin credentials before an action (restart, script, service restart). The bind password comes from .env (LDAP_SERVICE_PASSWORD); never store it here.",
+  "primaryServer":   "dc1.corp.example.com",
+  "fallbackServer":  "dc2.corp.example.com",
+  "port":            389,
+  "baseDN":          "DC=corp,DC=example,DC=com",
+  "serviceAccount":  "CN=svc-healthmonitor,OU=Service Accounts,DC=corp,DC=example,DC=com",
+  "servicePassword": "${LDAP_SERVICE_PASSWORD}"
+}

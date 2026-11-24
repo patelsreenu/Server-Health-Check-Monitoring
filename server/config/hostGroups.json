@@ -1,0 +1,7 @@
+[
+  { "prefix": "PRD", "env": "Prod"  },
+  { "prefix": "DEV", "env": "Dev"   },
+  { "prefix": "TST", "env": "Test"  },
+  { "prefix": "UAT", "env": "UAT"   },
+  { "prefix": "INF", "env": "Infra" }
+]

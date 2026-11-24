@@ -1,0 +1,10 @@
+{
+  "_comment": "Optional. Used only when someone clicks Raise incident. Leave instanceUrl blank to turn ticket creation off.",
+  "instanceUrl":            "",
+  "username":               "",
+  "password":               "",
+  "defaultAssignmentGroup": "IT-Ops",
+  "defaultCategory":        "Infrastructure",
+  "defaultUrgency":         3,
+  "defaultImpact":          3
+}
