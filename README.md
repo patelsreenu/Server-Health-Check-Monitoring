@@ -108,11 +108,13 @@ Without a key, forecasts, log grouping, correlation and alerts all still work.
 ## Security notes
 
 - **Collection is read-only.** Changes happen only when a person clicks an action and confirms it.
-- **Service restarts** are checked on the server:
-  - they run with the person's own credentials;
+- **Every action is checked on the server the same way.** This covers server start, stop and restart, **Run Script** and service restart:
+  - the person must give admin credentials for that server, and the server confirms they are an administrator (Windows: WinRM and the Administrators role; Linux: SSH and root or sudo/wheel/admin);
+  - the action then runs as that person, never as the collection account, so the server's own permissions decide;
+  - if `serviceControl.json` lists `allowedUsers`, only those signed-in users can run actions;
   - protected services are refused;
-  - every attempt is logged to `server/data/service-actions.log` and emailed.
-- **Known gap:** server start, stop and restart, and **Run Script**, check admin rights in the browser only. The server then runs them with the collection account, and Run Script accepts any script text. Anyone signed in could call these API routes directly. Until this is fixed, give the collection account no more rights than you are happy for every signed-in user to have, or remove those routes from `server/routes/actions.js`.
+  - every attempt, allowed or refused, is logged to `server/data/service-actions.log` (never the password), and each action that runs is emailed unless `ACTION_NOTIFY=false`.
+- **Run Script accepts any script text** from an administrator of the target server. It is logged and emailed, but not restricted to `scripts.json`.
 - **Use a proper certificate** in production. Set `TLS_PFX_PATH` or `TLS_CERT_PATH`/`TLS_KEY_PATH`; otherwise a self-signed certificate is generated.
 - **Never commit `.env`.** It is already in `.gitignore`.
 

@@ -23,117 +23,135 @@ function getSubnetLabel(server) {
   return getEnvGroup(hostname).group;
 }
 
-// POST /api/v2/actions/:id/verify-access
-// Validates that the supplied credentials have admin rights on the server.
-// Windows: connects via WinRM and checks IsInRole(Administrator).
-// Linux: connects via SSH and checks sudo/wheel/root group membership.
-router.post('/:id/verify-access', async (req, res) => {
-  const server = loadServers().find(s => s.id === req.params.id);
-  if (!server) return res.status(404).json({ error: 'Server not found' });
+// ── Admin credentials: one check for every action ────────────────────────────
+// Server start, stop and restart, Run Script and service restart are all protected the same way,
+// on the server (never only in the browser):
+//   1. signed in (requireAuth) and, if serviceControl.json lists allowedUsers, on that list;
+//   2. the person gives admin credentials for THIS server, and the server confirms they are an
+//      administrator (Windows: WinRM + IsInRole(Administrator); Linux: SSH + root or sudo/wheel/admin);
+//   3. the action then runs AS that person, not as the collection account, so the server's own
+//      permissions decide;
+//   4. every attempt, allowed or refused, is written to data/service-actions.log (never the password),
+//      and each action that runs is emailed to ALERT_TO unless ACTION_NOTIFY=false.
+const isLinux = server => (server.os || 'windows') === 'linux';
+const asUser  = (server, username, password) => ({ ...server, winrm: { ...(server.winrm || {}), username, password } });
+const IS_ADMIN_PS = `([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)`;
 
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
+function sshTarget(server, username, password) {
+  return { host: server.ssh?.host || server.host, port: server.ssh?.port || 22, username, password, readyTimeout: 15000 };
+}
 
-  const isLinux = (server.os || 'windows') === 'linux';
-
-  if (isLinux) {
-    const conn = new NodeSSH();
-    try {
-      await conn.connect({
-        host: server.ssh?.host || server.host,
-        port: server.ssh?.port || 22,
-        username,
-        password,
-        readyTimeout: 15000
-      });
-      // Check if user is root (uid 0) or in sudo/wheel group
-      const result = await conn.execCommand(
-        'uid=$(id -u); groups=$(id -Gn); echo "$uid $groups"'
-      );
-      conn.dispose();
-      const [uid, ...groupParts] = (result.stdout || '').trim().split(' ');
-      const groups = groupParts.join(' ');
-      const isAdmin = uid === '0' || /\b(sudo|wheel|root|admin)\b/.test(groups);
-      if (!isAdmin) return res.status(403).json({ error: `Access denied — ${username} does not have sudo/admin rights on this server` });
-      return res.json({ authorized: true, username });
-    } catch (err) {
-      try { conn.dispose(); } catch {}
-      return res.status(403).json({ error: `Access denied — ${err.message}` });
-    }
-  } else {
-    // Windows — test WinRM with provided credentials and check admin group
-    const testServer = {
-      ...server,
-      winrm: { ...(server.winrm || {}), username, password }
-    };
-    try {
-      const result = await vmcService.runScript(
-        testServer,
-        `([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)`
-      );
-      const isAdmin = result.stdout?.trim().toLowerCase() === 'true';
-      if (!isAdmin) return res.status(403).json({ error: `Access denied — ${username} does not have Administrator rights on this server` });
-      return res.json({ authorized: true, username });
-    } catch (err) {
-      return res.status(403).json({ error: `Access denied — ${err.message}` });
-    }
-  }
-});
-
-// POST /api/v2/actions/:id/restart
-router.post('/:id/restart', async (req, res) => {
-  const server = loadServers().find(s => s.id === req.params.id);
-  if (!server) return res.status(404).json({ error: 'Server not found' });
-
-  const { ticketType, ticketDescription, ticketSysId } = req.body;
-
+// Run a command over SSH as the person. With sudo, their password is given to sudo on stdin.
+async function sshRun(server, username, password, command, { sudo = false, stdin } = {}) {
+  const conn = new NodeSSH();
   try {
-    const result = await vmcService.restartServer(server);
+    await conn.connect(sshTarget(server, username, password));
+    const r = await conn.execCommand(sudo ? `sudo -S -p '' ${command}` : command,
+      { stdin: sudo ? password + '\n' + (stdin || '') : stdin });
+    return { stdout: r.stdout || '', stderr: r.stderr || '', exitCode: r.code ?? 0 };
+  } finally { try { conn.dispose(); } catch {} }
+}
 
-    // Update ticket to Resolved if sysId provided
-    if (ticketSysId) {
-      await snService.updateTicket(ticketType || 'incident', ticketSysId, 'Resolved').catch(() => {});
+// Is this account an administrator on this server?  Returns { ok, error }.
+async function checkAdmin(server, username, password) {
+  try {
+    if (isLinux(server)) {
+      const r = await sshRun(server, username, password, 'echo "$(id -u) $(id -Gn)"');
+      const [uid, ...groups] = r.stdout.trim().split(' ');
+      return uid === '0' || /\b(sudo|wheel|root|admin)\b/.test(groups.join(' '))
+        ? { ok: true } : { ok: false, error: `${username} does not have sudo/admin rights on this server` };
     }
-
-    res.json({ success: true, ...result });
+    const r = await vmcService.runScript(asUser(server, username, password), IS_ADMIN_PS);
+    return String(r.stdout).trim().toLowerCase() === 'true'
+      ? { ok: true } : { ok: false, error: `${username} does not have Administrator rights on this server` };
   } catch (err) {
-    if (ticketSysId) {
-      await snService.updateTicket(ticketType || 'incident', ticketSysId, 'Failed', err.message).catch(() => {});
+    return { ok: false, error: String(err.message || err) };
+  }
+}
+
+// Runs checks 1, 2 and the audit of refusals.  Returns { username, password, base } or null (already answered).
+async function adminGate(req, res, server, action, extra = {}) {
+  const { username, password, reason } = req.body || {};
+  const base = { action, by: whoIs(req), server: server.name || server.id, adminUser: username || null,
+                 reason: reason ? String(reason).slice(0, 300) : null, ...extra };
+  const refuse = (status, error) => { audit({ ...base, result: 'refused', error }); res.status(status).json({ error }); return null; };
+  if (!username || !password) return refuse(400, 'Admin username and password for this server are required');
+  if (!userAllowed(loadPolicy(), req)) return refuse(403, `${whoIs(req)} is not allowed to run server actions from the dashboard`);
+  const a = await checkAdmin(server, username, password);
+  if (!a.ok) return refuse(403, `Access denied: ${a.error}`);
+  return { username, password, base };
+}
+
+const findServer = req => loadServers().find(s => s.id === req.params.id);
+const updateTicket = (body, outcome, detail) => body?.ticketSysId
+  ? snService.updateTicket(body.ticketType || 'incident', body.ticketSysId, outcome, detail).catch(() => {}) : null;
+
+// POST /api/v2/actions/:id/verify-access  { username, password }
+// Lets the credentials dialog say "access denied" straight away.  It is a convenience only: every
+// action below repeats the same check before it runs.
+router.post('/:id/verify-access', async (req, res) => {
+  const server = findServer(req);
+  if (!server) return res.status(404).json({ error: 'Server not found' });
+  const { username, password } = req.body || {};
+  if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
+  if (!userAllowed(loadPolicy(), req)) return res.status(403).json({ error: `${whoIs(req)} is not allowed to run server actions from the dashboard` });
+  const a = await checkAdmin(server, username, password);
+  if (!a.ok) return res.status(403).json({ error: `Access denied: ${a.error}` });
+  res.json({ authorized: true, username });
+});
+
+// POST /api/v2/actions/:id/restart  { username, password, reason, ticketType?, ticketSysId? }
+router.post('/:id/restart', async (req, res) => {
+  const server = findServer(req);
+  if (!server) return res.status(404).json({ error: 'Server not found' });
+  const key = `${server.id}::server`;
+  if (inFlight.has(key)) return res.status(409).json({ error: 'An action on this server is already in progress' });
+  inFlight.add(key);
+  try {
+    const g = await adminGate(req, res, server, 'server restart');
+    if (!g) return;
+    try {
+      if (isLinux(server)) {
+        const r = await sshRun(server, g.username, g.password, 'shutdown -r +0', { sudo: true });
+        if (r.exitCode !== 0) throw new Error(r.stderr.trim() || `shutdown exited with code ${r.exitCode}`);
+      } else {
+        await vmcService.restartServer(asUser(server, g.username, g.password));
+      }
+      audit({ ...g.base, result: 'restart sent' });
+      notifyAction(g.base, 'Restart command sent').catch(e => console.warn('[actions] email failed:', e.message));
+      await updateTicket(req.body, 'Resolved');
+      res.json({ success: true, message: `Restart command sent to ${server.name || server.id}` });
+    } catch (err) {
+      const msg = String(err.message || err);
+      audit({ ...g.base, result: 'failed', error: msg });
+      await updateTicket(req.body, 'Failed', msg);
+      res.status(/Access is denied|logon failure|incorrect password|not in the sudoers/i.test(msg) ? 403 : 500).json({ error: msg });
     }
-    res.status(500).json({ error: err.message });
-  }
+  } finally { inFlight.delete(key); }
 });
 
-// POST /api/v2/actions/:id/stop
-router.post('/:id/stop', async (req, res) => {
-  const server = loadServers().find(s => s.id === req.params.id);
-  if (!server) return res.status(404).json({ error: 'Server not found' });
+// POST /api/v2/actions/:id/start and /stop  { username, password, reason }
+// Not available yet for any provider.  They still go through the admin check first, so whatever is
+// added here later is protected the same way.
+for (const action of ['start', 'stop']) {
+  router.post(`/:id/${action}`, async (req, res) => {
+    const server = findServer(req);
+    if (!server) return res.status(404).json({ error: 'Server not found' });
+    const g = await adminGate(req, res, server, `server ${action}`);
+    if (!g) return;
+    const error = `Server ${action} is not available yet for ${server.provider || 'this provider'}`;
+    audit({ ...g.base, result: 'not available', error });
+    res.status(400).json({ error });
+  });
+}
 
-  if (server.provider === 'VMC') {
-    return res.status(400).json({ error: 'VMC VM stop requires vCenter API access — not configured' });
-  }
-  res.status(400).json({ error: `Stop not implemented for provider: ${server.provider}` });
-});
-
-// POST /api/v2/actions/:id/start
-router.post('/:id/start', async (req, res) => {
-  const server = loadServers().find(s => s.id === req.params.id);
-  if (!server) return res.status(404).json({ error: 'Server not found' });
-
-  if (server.provider === 'VMC') {
-    return res.status(400).json({ error: 'VMC VM start requires vCenter API access — not configured' });
-  }
-  res.status(400).json({ error: `Start not implemented for provider: ${server.provider}` });
-});
-
-// POST /api/v2/actions/:id/script
+// POST /api/v2/actions/:id/script  { scriptId | script, username, password, reason, ticketType?, ticketSysId? }
 router.post('/:id/script', async (req, res) => {
-  const server = loadServers().find(s => s.id === req.params.id);
+  const server = findServer(req);
   if (!server) return res.status(404).json({ error: 'Server not found' });
 
-  const { scriptId, script: scriptBody, ticketType, ticketSysId } = req.body;
+  const { scriptId, script: scriptBody } = req.body || {};
   if (!scriptId && !scriptBody) return res.status(400).json({ error: 'Provide scriptId or script body' });
-
   let scriptContent = scriptBody;
   if (scriptId && !scriptBody) {
     const found = loadScripts().find(s => s.id === scriptId && (!s.os || s.os === server.os || s.os === 'any'));
@@ -141,21 +159,48 @@ router.post('/:id/script', async (req, res) => {
     scriptContent = found.script;
   }
 
+  const key = `${server.id}::server`;
+  if (inFlight.has(key)) return res.status(409).json({ error: 'An action on this server is already in progress' });
+  inFlight.add(key);
   try {
-    const result = await vmcService.runScript(server, scriptContent);
-
-    if (ticketSysId) {
-      await snService.updateTicket(ticketType || 'incident', ticketSysId, 'Resolved').catch(() => {});
+    const g = await adminGate(req, res, server, 'run script',
+      { script: scriptId ? `predefined: ${scriptId}` : String(scriptContent).slice(0, 500) });
+    if (!g) return;
+    try {
+      const result = isLinux(server)
+        ? await sshRun(server, g.username, g.password, 'bash -s', { stdin: scriptContent })
+        : await vmcService.runScript(asUser(server, g.username, g.password), scriptContent);
+      audit({ ...g.base, result: 'ran', exitCode: result.exitCode });
+      notifyAction(g.base, `Script ran, exit code ${result.exitCode}`).catch(e => console.warn('[actions] email failed:', e.message));
+      await updateTicket(req.body, result.exitCode === 0 ? 'Resolved' : 'Failed');
+      res.json({ success: result.exitCode === 0, ...result });
+    } catch (err) {
+      const msg = String(err.message || err);
+      audit({ ...g.base, result: 'failed', error: msg });
+      await updateTicket(req.body, 'Failed', msg);
+      res.status(500).json({ error: msg });
     }
-
-    res.json({ success: true, ...result });
-  } catch (err) {
-    if (ticketSysId) {
-      await snService.updateTicket(ticketType || 'incident', ticketSysId, 'Failed', err.message).catch(() => {});
-    }
-    res.status(500).json({ error: err.message });
-  }
+  } finally { inFlight.delete(key); }
 });
+
+async function notifyAction({ action, by, server, adminUser, reason, script }, outcome) {
+  if (/^(0|false|off|no)$/i.test(process.env.ACTION_NOTIFY || process.env.SERVICE_RESTART_NOTIFY || '')) return;
+  const alerts = require('../services/alertService');
+  const lines = [
+    `${action[0].toUpperCase() + action.slice(1)}: ${outcome}`,
+    `Server: ${server}`,
+    `Requested by: ${by} (admin account used: ${adminUser})`,
+    `Reason: ${reason || 'not given'}`,
+    script ? `Script: ${script}` : null,
+    `Time: ${new Date().toLocaleString('en-AU')}`
+  ].filter(Boolean);
+  const e = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  await alerts.sendMail({
+    subject: `[Health Monitor] ${action}: ${String(server).split('.')[0]}`,
+    text: lines.join('\n'),
+    html: `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5">${lines.map(l => `<p style="margin:0 0 6px">${e(l)}</p>`).join('')}</div>`
+  });
+}
 
 // ── Service restart ──────────────────────────────────────────────────────────
 // Access control, all enforced here (not just in the browser):
@@ -196,7 +241,7 @@ router.post('/:id/services/restart', async (req, res) => {
   const server = loadServers().find(s => s.id === req.params.id);
   if (!server) return res.status(404).json({ error: 'Server not found' });
   const { service, confirm, username, password, reason } = req.body || {};
-  const base = { by: whoIs(req), server: server.name || server.id, service, adminUser: username || null, reason: reason ? String(reason).slice(0, 300) : null };
+  const base = { action: 'service restart', by: whoIs(req), server: server.name || server.id, service, adminUser: username || null, reason: reason ? String(reason).slice(0, 300) : null };
   const refuse = (status, error) => { audit({ ...base, result: 'refused', error }); return res.status(status).json({ error }); };
 
   if ((server.os || 'windows') === 'linux') return refuse(400, 'Service restart is available for Windows servers only');

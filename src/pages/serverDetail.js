@@ -303,7 +303,11 @@ const DetailPage = (() => {
     try {
       await App.api(`/api/v2/actions/${encodeURIComponent(server.id)}/${action}`, {
         method: 'POST',
+        // The server checks these admin credentials again and runs the action as that account.
         body: {
+          username: verified.username,
+          password: verified.password,
+          reason: verified.ticketDesc,
           ticketType: verified.ticketType,
           ticketSysId: ticket?.sysId
         }
@@ -500,7 +504,7 @@ const DetailPage = (() => {
 
     // Admin auth
     let verified;
-    try { verified = await App.showAdminModal('Run Script', currentServer.name || currentServer.id, group); }
+    try { verified = await App.showAdminModal('Run Script', currentServer.name || currentServer.id, group, currentServer.id); }
     catch { return; }
 
     App.closeModal('script-modal');
@@ -535,7 +539,8 @@ const DetailPage = (() => {
     document.getElementById('run-script-spinner').classList.remove('hidden');
 
     try {
-      const body = { ticketType: verified.ticketType, ticketSysId: ticket?.sysId };
+      const body = { username: verified.username, password: verified.password, reason: verified.ticketDesc,
+                     ticketType: verified.ticketType, ticketSysId: ticket?.sysId };
       if (scriptId) body.scriptId = scriptId; else body.script = scriptBody;
 
       const res = await App.api(`/api/v2/actions/${encodeURIComponent(currentServer.id)}/script`, { method: 'POST', body });
