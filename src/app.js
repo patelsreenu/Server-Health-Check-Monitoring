@@ -391,7 +391,8 @@ function addActionLog(message, type = 'info') {
 function showAdminModal(actionLabel, serverName, group, serverId, opts = {}) {
   return new Promise((resolve, reject) => {
     state.pendingAction = { resolve, reject, serverId };
-    // Service restart: no ServiceNow ticket, and the description becomes the reason that is logged.
+    // Server actions and service restarts pass { ticket: false }: no ServiceNow ticket, and the description
+    // becomes the reason that is logged and emailed.
     const noTicket = opts.ticket === false;
     $('ticket-type-select').closest('.form-field').classList.toggle('hidden', noTicket);
     $('ticket-description').closest('.form-field').querySelector('.field-label').firstChild.textContent = noTicket ? 'Reason ' : 'Ticket Description ';

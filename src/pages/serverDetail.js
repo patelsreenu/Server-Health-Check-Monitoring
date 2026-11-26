@@ -269,34 +269,9 @@ const DetailPage = (() => {
     // Step 2 — admin password
     let verified;
     try {
-      verified = await App.showAdminModal(actionLabel, server.name || server.id, group, server.id);
+      // No ServiceNow ticket is raised for an action; the description is the reason that is logged and emailed.
+      verified = await App.showAdminModal(actionLabel, server.name || server.id, group, server.id, { ticket: false });
     } catch { return; }
-
-    // Create ServiceNow ticket first
-    let ticket = null;
-    try {
-      const ticketRes = await App.api('/api/v2/tickets', {
-        method: 'POST',
-        body: {
-          ticketType:   verified.ticketType,
-          shortDescription: `${actionLabel} on ${server.name}`,
-          description:  verified.ticketDesc,
-          serverName:   server.name,
-          hyperscaler:  server.provider || 'VMC',
-          subnet:       group,
-          actionType:   action
-        }
-      });
-      if (ticketRes.ticket) {
-        ticket = ticketRes.ticket;
-        App.toast(`Ticket ${ticket.number} created`, 'success', { label: `View ${ticket.number}`, url: ticket.url });
-      } else if (ticketRes.skipped) {
-        App.toast('ServiceNow not configured — proceeding without ticket', 'warning');
-      }
-    } catch (err) {
-      App.toast(`Ticket creation failed — action aborted: ${err.message}`, 'error');
-      return;
-    }
 
     // Execute action
     App.addActionLog(`${actionLabel} initiated by ${App.state.session?.accountName || 'admin'}`);
@@ -304,13 +279,7 @@ const DetailPage = (() => {
       await App.api(`/api/v2/actions/${encodeURIComponent(server.id)}/${action}`, {
         method: 'POST',
         // The server checks these admin credentials again and runs the action as that account.
-        body: {
-          username: verified.username,
-          password: verified.password,
-          reason: verified.ticketDesc,
-          ticketType: verified.ticketType,
-          ticketSysId: ticket?.sysId
-        }
+        body: { username: verified.username, password: verified.password, reason: verified.ticketDesc }
       });
       App.toast(`${actionLabel} command sent for ${server.name}`, 'success');
       App.addActionLog(`${actionLabel} completed successfully`);
@@ -504,43 +473,18 @@ const DetailPage = (() => {
 
     // Admin auth
     let verified;
-    try { verified = await App.showAdminModal('Run Script', currentServer.name || currentServer.id, group, currentServer.id); }
+    // No ServiceNow ticket is raised; the description is the reason that is logged and emailed.
+    try { verified = await App.showAdminModal('Run Script', currentServer.name || currentServer.id, group, currentServer.id, { ticket: false }); }
     catch { return; }
 
     App.closeModal('script-modal');
-
-    // Create ticket
-    let ticket = null;
-    try {
-      const ticketRes = await App.api('/api/v2/tickets', {
-        method: 'POST',
-        body: {
-          ticketType:   verified.ticketType,
-          shortDescription: `Script execution on ${currentServer.name}`,
-          description:  verified.ticketDesc,
-          serverName:   currentServer.name,
-          hyperscaler:  currentServer.provider || 'VMC',
-          subnet:       group,
-          actionType:   'script',
-          scriptContent: scriptBody || `Predefined script: ${scriptId}`
-        }
-      });
-      if (ticketRes.ticket) {
-        ticket = ticketRes.ticket;
-        App.toast(`Ticket ${ticket.number} created`, 'success', { label: `View ${ticket.number}`, url: ticket.url });
-      }
-    } catch (err) {
-      App.toast(`Ticket creation failed — script aborted: ${err.message}`, 'error');
-      return;
-    }
 
     App.addActionLog(`Script execution started`);
     document.getElementById('run-script-label').textContent = 'Running…';
     document.getElementById('run-script-spinner').classList.remove('hidden');
 
     try {
-      const body = { username: verified.username, password: verified.password, reason: verified.ticketDesc,
-                     ticketType: verified.ticketType, ticketSysId: ticket?.sysId };
+      const body = { username: verified.username, password: verified.password, reason: verified.ticketDesc };
       if (scriptId) body.scriptId = scriptId; else body.script = scriptBody;
 
       const res = await App.api(`/api/v2/actions/${encodeURIComponent(currentServer.id)}/script`, { method: 'POST', body });

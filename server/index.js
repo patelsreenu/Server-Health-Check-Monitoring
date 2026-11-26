@@ -17,7 +17,6 @@ const fleetRoute       = require('./routes/fleet');
 const subnetRoute      = require('./routes/subnet');
 const serverDetailRoute = require('./routes/serverDetail');
 const actionsRoute     = require('./routes/actions');
-const ticketsRoute     = require('./routes/tickets');
 const aiRoute          = require('./routes/ai');
 const toolsProxy = require('./routes/toolsProxy');
 require('./services/historyStore').init();
@@ -74,7 +73,8 @@ app.use('/api/v2/fleet',   requireAuth, fleetRoute);
 app.use('/api/v2/subnet',  requireAuth, subnetRoute);
 app.use('/api/v2/server',  requireAuth, serverDetailRoute);
 app.use('/api/v2/actions', requireAuth, actionsRoute);
-app.use('/api/v2/tickets', requireAuth, ticketsRoute);
+// /api/v2/tickets removed: actions no longer raise ServiceNow tickets. Incidents are raised only by a person
+// clicking "Raise incident" (POST /api/v2/ai/raise), never automatically.
 app.use('/api/v2/ai',      requireAuth, aiRoute);
 app.post('/api/v2/network/frame-session', requireAuth, toolsProxy.frameSession);
 app.get('/api/v2/network/enabled', requireAuth, toolsProxy.enabled);

@@ -5,7 +5,6 @@ const fs             = require('fs');
 const path           = require('path');
 const { NodeSSH }    = require('node-ssh');
 const vmcService     = require('../services/vmcService');
-const snService      = require('../services/servicenowService');
 const { loadServers } = require('../services/excelConfig');
 const { getEnvGroup } = require('../services/subnetGrouping');
 
@@ -83,8 +82,6 @@ async function adminGate(req, res, server, action, extra = {}) {
 }
 
 const findServer = req => loadServers().find(s => s.id === req.params.id);
-const updateTicket = (body, outcome, detail) => body?.ticketSysId
-  ? snService.updateTicket(body.ticketType || 'incident', body.ticketSysId, outcome, detail).catch(() => {}) : null;
 
 // POST /api/v2/actions/:id/verify-access  { username, password }
 // Lets the credentials dialog say "access denied" straight away.  It is a convenience only: every
@@ -100,7 +97,7 @@ router.post('/:id/verify-access', async (req, res) => {
   res.json({ authorized: true, username });
 });
 
-// POST /api/v2/actions/:id/restart  { username, password, reason, ticketType?, ticketSysId? }
+// POST /api/v2/actions/:id/restart  { username, password, reason }  (no ServiceNow ticket is raised or updated)
 router.post('/:id/restart', async (req, res) => {
   const server = findServer(req);
   if (!server) return res.status(404).json({ error: 'Server not found' });
@@ -119,12 +116,10 @@ router.post('/:id/restart', async (req, res) => {
       }
       audit({ ...g.base, result: 'restart sent' });
       notifyAction(g.base, 'Restart command sent').catch(e => console.warn('[actions] email failed:', e.message));
-      await updateTicket(req.body, 'Resolved');
       res.json({ success: true, message: `Restart command sent to ${server.name || server.id}` });
     } catch (err) {
       const msg = String(err.message || err);
       audit({ ...g.base, result: 'failed', error: msg });
-      await updateTicket(req.body, 'Failed', msg);
       res.status(/Access is denied|logon failure|incorrect password|not in the sudoers/i.test(msg) ? 403 : 500).json({ error: msg });
     }
   } finally { inFlight.delete(key); }
@@ -145,7 +140,7 @@ for (const action of ['start', 'stop']) {
   });
 }
 
-// POST /api/v2/actions/:id/script  { scriptId | script, username, password, reason, ticketType?, ticketSysId? }
+// POST /api/v2/actions/:id/script  { scriptId | script, username, password, reason }  (no ServiceNow ticket)
 router.post('/:id/script', async (req, res) => {
   const server = findServer(req);
   if (!server) return res.status(404).json({ error: 'Server not found' });
@@ -172,12 +167,10 @@ router.post('/:id/script', async (req, res) => {
         : await vmcService.runScript(asUser(server, g.username, g.password), scriptContent);
       audit({ ...g.base, result: 'ran', exitCode: result.exitCode });
       notifyAction(g.base, `Script ran, exit code ${result.exitCode}`).catch(e => console.warn('[actions] email failed:', e.message));
-      await updateTicket(req.body, result.exitCode === 0 ? 'Resolved' : 'Failed');
       res.json({ success: result.exitCode === 0, ...result });
     } catch (err) {
       const msg = String(err.message || err);
       audit({ ...g.base, result: 'failed', error: msg });
-      await updateTicket(req.body, 'Failed', msg);
       res.status(500).json({ error: msg });
     }
   } finally { inFlight.delete(key); }

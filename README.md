@@ -16,7 +16,7 @@ It runs on a single jump box inside your network and installs nothing on the ser
 | **Alerts** | Email digest for sustained CPU or memory breaches and low disk, with reminders and optional "resolved" mails |
 | **Endpoint checks** | HTTP(S) URLs checked on a schedule, with an email when one goes down or comes back |
 | **Actions** | Start, stop or restart a server, run a script, restart a Windows service. Each asks for the person's admin credentials and a confirmation (see the security notes) |
-| **Incidents** | A **Raise incident** button drafts a ServiceNow ticket. Nothing is raised automatically |
+| **Incidents** | A **Raise incident** button drafts a ServiceNow ticket for a person to review and send. Nothing is raised automatically, and server actions never raise tickets |
 | **Network Monitoring** | Your network poller's own pages (the NetOps NOC platform: overview, devices, alerts, SD-WAN, interfaces, reports, admin), shown unchanged inside the tab |
 | **Firewall Monitoring** | The PAN-OS Traffic Portal's own pages, shown unchanged inside the tab: firewall status, traffic log search by source, destination, port, application, action and protocol, CSV export, and the server and application directory |
 
@@ -123,7 +123,7 @@ Without a key, forecasts, log grouping, correlation and alerts all still work.
 ```
 server/
   index.js            HTTPS server and routes
-  routes/             auth, fleet, subnet, server detail, actions, tickets, ai, toolsProxy (network + firewall tabs)
+  routes/             auth, fleet, subnet, server detail, actions, ai, toolsProxy (network + firewall tabs)
   services/           collectors (WinRM, SSH, AWS, Azure, OCI), history, forecast, alerts, AI
   config/             your configuration (examples included)
 src/                  single-page web app (plain JS, no build step)
